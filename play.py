@@ -133,6 +133,7 @@ def calculate_insights():
         for gh in range(6):
             for ga in range(6):
                 prob = bayesian_goal_probability(lambda_home, gh, r=3) * bayesian_goal_probability(lambda_away, ga, r=3)
+                # Adjust for the current scoreline when evaluating final result
                 if (home_goals + gh) > (away_goals + ga):
                     home_win_prob += prob
                 elif (home_goals + gh) < (away_goals + ga):
@@ -170,25 +171,34 @@ def calculate_insights():
 
         # -----------------------------------------------------------------
         # SCORELINE PROBABILITIES (using Poisson for likely outcomes)
+        # Now accounting for the current score.
         # -----------------------------------------------------------------
         goal_range = 10
         scoreline_probs = {}
         for i in range(goal_range):
             for j in range(goal_range):
+                # i and j represent additional goals from now until the end of the match.
                 p = zip_probability(lambda_home, i) * zip_probability(lambda_away, j)
-                scoreline_probs[(i, j)] = p
+                final_h = home_goals + i
+                final_a = away_goals + j
+                scoreline_probs[(final_h, final_a)] = p
         sorted_scorelines = sorted(scoreline_probs.items(), key=lambda x: x[1], reverse=True)[:5]
-        agg_draw_pct = sum(p for (i, j), p in scoreline_probs.items() if i == j) * 100
-        agg_non_draw_pct = sum(p for (i, j), p in scoreline_probs.items() if i != j) * 100
+
+        # For aggregate probabilities, we use the blended probabilities from the Bayesian approach.
+        agg_draw_pct = draw_prob * 100
+        agg_non_draw_pct = (home_win_prob + away_win_prob) * 100
 
         # -----------------------------------------------------------------
         # Over/Under 2.5 Goals
+        # Now taking into account the current total goals.
         # -----------------------------------------------------------------
+        current_total_goals = home_goals + away_goals
         under_prob_model = 0.0
         for i in range(goal_range):
             for j in range(goal_range):
-                if (i + j) <= 2:
-                    under_prob_model += zip_probability(lambda_home, i) * zip_probability(lambda_away, j)
+                p = zip_probability(lambda_home, i) * zip_probability(lambda_away, j)
+                if current_total_goals + i + j <= 2:
+                    under_prob_model += p
         over_prob_model = 1 - under_prob_model
         fair_under_odds = fair_odds(under_prob_model)
         fair_over_odds  = fair_odds(over_prob_model)
