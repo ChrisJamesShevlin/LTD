@@ -289,7 +289,7 @@ def reset_all():
 
 # --- GUI Layout (Pre-Match Style) ---
 root = tk.Tk()
-root.title("Odds Apex - Inplay")
+root.title("Odds Apex")
 
 # Do NOT force the entire window bigger with root.geometry(...)
 
