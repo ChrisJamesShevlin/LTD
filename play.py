@@ -37,6 +37,10 @@ def calculate_insights():
 
         home_xg             = getf("entry_home_xg")
         away_xg             = getf("entry_away_xg")
+        # New inputs for xG Against
+        home_xg_against     = getf("entry_home_xg_against")
+        away_xg_against     = getf("entry_away_xg_against")
+
         elapsed_minutes     = getf("entry_elapsed_minutes")
         home_goals          = geti("entry_home_goals")
         away_goals          = geti("entry_away_goals")
@@ -122,6 +126,11 @@ def calculate_insights():
         lambda_away *= 1 + ((away_opp_box - 20) / 200) * fraction_remaining
         lambda_home *= 1 + ((home_corners - 4) / 50) * fraction_remaining
         lambda_away *= 1 + ((away_corners - 4) / 50) * fraction_remaining
+        
+        # --- NEW: Incorporate Opponent xG Against for defensive quality adjustment ---
+        # If an opposition concedes a higher xG than average, boost the expected goals.
+        lambda_home *= 1 + (away_xg_against - 1.0) * 0.1 * fraction_remaining
+        lambda_away *= 1 + (home_xg_against - 1.0) * 0.1 * fraction_remaining
 
         def bayesian_goal_probability(expected_lambda, k, r=2):
             p = r / (r + expected_lambda)
@@ -203,6 +212,13 @@ def calculate_insights():
         fair_under_odds = fair_odds(under_prob_model)
         fair_over_odds  = fair_odds(over_prob_model)
 
+        # --- NEW: Likely Goals Remaining ---
+        # Since lambda_home and lambda_away represent the expected goals for the remainder,
+        # we can use them to estimate the remaining goals in the match.
+        likely_home_remaining = lambda_home
+        likely_away_remaining = lambda_away
+        likely_total_remaining = likely_home_remaining + likely_away_remaining
+
         # -----------------------------------------------------------------
         # Lay Draw Recommendation (only one calculation)
         # -----------------------------------------------------------------
@@ -239,6 +255,8 @@ def calculate_insights():
         output += f"  Home: {live_odds_home:.2f} | {fair_odds_home:.2f}\n"
         output += f"  Draw: {live_odds_draw:.2f} | {fair_odds_draw:.2f}\n"
         output += f"  Away: {live_odds_away:.2f} | {fair_odds_away:.2f}\n\n"
+        output += "Likely Goals Remaining:\n"
+        output += f"  Total: {likely_total_remaining:.2f} (Home: {likely_home_remaining:.2f}, Away: {likely_away_remaining:.2f})\n\n"
         output += "Lay Draw Recommendation:\n"
         output += f"  {lay_draw_rec}\n"
 
@@ -299,6 +317,9 @@ entries = {
     "entry_away_avg_conceded":    tk.Entry(main_frame),
     "entry_home_xg":              tk.Entry(main_frame),
     "entry_away_xg":              tk.Entry(main_frame),
+    # --- New Fields for xG Against ---
+    "entry_home_xg_against":      tk.Entry(main_frame),
+    "entry_away_xg_against":      tk.Entry(main_frame),
     "entry_elapsed_minutes":      tk.Entry(main_frame),
     "entry_home_goals":           tk.Entry(main_frame),
     "entry_away_goals":           tk.Entry(main_frame),
@@ -325,6 +346,8 @@ labels_text = [
     "Home Avg Goals Scored", "Home Avg Goals Conceded",
     "Away Avg Goals Scored", "Away Avg Goals Conceded",
     "Home Xg", "Away Xg",
+    # --- New Labels for xG Against ---
+    "Home Xg Against", "Away Xg Against",
     "Elapsed Minutes", "Home Goals", "Away Goals",
     "In-Game Home Xg", "In-Game Away Xg",
     "Home Possession %", "Away Possession %",
