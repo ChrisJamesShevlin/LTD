@@ -51,7 +51,7 @@ def calculate_insights():
 
         effective_balance = max(balance, 0)
 
-        # --- Expected goals remaining with time decay ---
+        # --- Time‑decayed expected goals remaining ---
         frac = max(0.0, (90 - elapsed) / 90.0)
         def time_decay(xg):
             base = math.exp(-0.003 * elapsed)
@@ -110,14 +110,11 @@ def calculate_insights():
         for gh in range(6):
             for ga in range(6):
                 p = bayes(lam_h,gh)*bayes(lam_a,ga)
-                if home_goals+gh > away_goals+ga:
-                    hw+=p
-                elif home_goals+gh < away_goals+ga:
-                    aw+=p
-                else:
-                    dw+=p
-        tot = hw+aw+dw
-        if tot>0: hw,aw,dw = hw/tot, aw/tot, dw/tot
+                if home_goals+gh > away_goals+ga: hw+=p
+                elif home_goals+gh < away_goals+ga: aw+=p
+                else: dw+=p
+        total = hw+aw+dw
+        if total>0: hw,aw,dw = hw/total, aw/total, dw/total
 
         # --- Blend with market odds ---
         m_h = 1/live_home  if live_home>0  else 0
@@ -140,39 +137,46 @@ def calculate_insights():
         }
         top5 = sorted(final_probs.items(), key=lambda x:x[1], reverse=True)[:5]
 
-        # --- Build output ---
+        # --- Compute dynamic Under‑limit probabilities ---
         current_total = home_goals + away_goals
         limit = current_total + 1.5
         add_probs = {
             (i,j): zip_probability(lam_h,i)*zip_probability(lam_a,j)
             for i in range(10) for j in range(10)
         }
-        # allow at most 1 additional goal for Under limit
+        # allow at most floor(limit - current_total) = 1 extra goal
         fair_under = sum(p for (i,j),p in add_probs.items() if i+j <= 1)
 
+        # --- Build output ---
         output = "=== Betting Insights ===\n\n"
         output += "Top 5 Likely Scorelines:\n"
         for s,p in top5:
             output += f"  {s[0]}-{s[1]}: {p*100:.1f}% (Fair Odds: {fair_odds(p):.2f})\n"
 
-        output += f"\nAggregate Probabilities:\n  Draw: {f_d*100:.1f}%\n"
-        output += f"  Non-Draw: {(f_h+f_a)*100:.1f}%\n\n"
+        # --- Aggregate total-goals probabilities ---
+        output += f"\nAggregate Total‑Goals Probabilities:\n"
+        output += f"  Over {limit}: { (1-fair_under)*100:.1f}%\n"
+        output += f"  Under {limit}: { fair_under*100:.1f}%\n\n"
 
-        # Only Under limit
+        # --- Only Under line ---
         output += f"Under {limit} Goals: Fair {fair_odds(fair_under):.2f} | Live {live_under:.2f}\n\n"
 
+        # --- Market Odds ---
         output += (
             f"Market Odds (Live | Fair):\n"
             f"  Home: {live_home:.2f} | {fair_odds(f_h):.2f}\n"
             f"  Draw: {live_draw:.2f} | {fair_odds(f_d):.2f}\n"
             f"  Away: {live_away:.2f} | {fair_odds(f_a):.2f}\n\n"
         )
+
+        # --- Likely Goals Remaining ---
         output += (
             f"Likely Goals Remaining:\n"
-            f"  Total: {lam_h+lam_a:.2f} (Home: {lam_h:.2f}, Away: {lam_a:.2f})\n\n"
+            f"  Total: {lam_h+lam_a:.2f} "
+            f"(Home: {lam_h:.2f}, Away: {lam_a:.2f})\n\n"
         )
 
-        # Kelly‑based lay
+        # --- Kelly‑based lay recommendation ---
         if live_under > 0 and live_under < fair_odds(fair_under):
             edge = (fair_odds(fair_under) - live_under) / fair_odds(fair_under)
             k = kelly_frac * edge
@@ -182,7 +186,7 @@ def calculate_insights():
         else:
             output += f"No lay value on Under {limit}\n"
 
-        # display
+        # --- Display ---
         result_text.config(state="normal")
         result_text.delete("1.0", tk.END)
         for line in output.split("\n"):
@@ -210,7 +214,7 @@ def reset_all():
 
 # --- GUI Setup ---
 root = tk.Tk()
-root.title("Odds Apex - Unders")
+root.title("Odds Apex - Football Unders")
 
 canvas = tk.Canvas(root)
 canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
@@ -253,21 +257,22 @@ entries = {
 }
 
 labels = [
-    "Home Avg Goals Scored","Home Avg Goals Conceded",
-    "Away Avg Goals Scored","Away Avg Goals Conceded",
-    "Home xG","Away xG","Home xG Against","Away xG Against",
-    "Elapsed Minutes","Home Goals","Away Goals",
-    "In-Game Home xG","In-Game Away xG",
-    "Home Possession %","Away Possession %",
-    "Home SOT","Away SOT",
-    "Home Opp Box Touches","Away Opp Box Touches",
-    "Home Corners","Away Corners",
-    "Account Balance","Kelly Staking Fraction (%)",
+    "Home Avg Goals Scored",  "Home Avg Goals Conceded",
+    "Away Avg Goals Scored",  "Away Avg Goals Conceded",
+    "Home xG",                "Away xG",
+    "Home xG Against",        "Away xG Against",
+    "Elapsed Minutes",        "Home Goals",    "Away Goals",
+    "In-Game Home xG",        "In-Game Away xG",
+    "Home Possession %",      "Away Possession %",
+    "Home SOT",               "Away SOT",
+    "Home Opp Box Touches",   "Away Opp Box Touches",
+    "Home Corners",           "Away Corners",
+    "Account Balance",        "Kelly Staking Fraction (%)",
     "Live Odds Under (dynamic .5)",
-    "Live Odds Home","Live Odds Draw","Live Odds Away"
+    "Live Odds Home",         "Live Odds Draw",   "Live Odds Away"
 ]
 
-for i,(k,t) in enumerate(zip(entries,labels)):
+for i,(k,t) in enumerate(zip(entries, labels)):
     tk.Label(main, text=t).grid(row=i, column=0, sticky="e", padx=5, pady=2)
     entries[k].grid(row=i, column=1, padx=5, pady=2)
 
